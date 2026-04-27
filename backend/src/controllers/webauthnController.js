@@ -6,8 +6,8 @@ const { signAccessToken, signRefreshToken } = require('../utils/tokenUtils');
 const { RefreshToken } = require('../models');
 
 const rpName = 'CMS Ethiopia';
-const rpID = 'localhost'; // In production, this should be the domain, e.g., cms.ethiopia.gov
-const origin = `http://localhost:3000`; // Frontend URL
+const getRpID = (req) => process.env.RP_ID || req.get('host').split(':')[0];
+const getOrigin = (req) => process.env.ORIGIN || `${req.protocol === 'http' && req.get('host').includes('localhost') ? 'http' : 'https'}://${req.get('host')}`;
 
 const createSendToken = async (user, statusCode, res) => {
   const accessToken = signAccessToken(user.id);
@@ -40,7 +40,7 @@ exports.generateRegistrationOptions = catchAsync(async (req, res, next) => {
 
   const options = await generateRegistrationOptions({
     rpName,
-    rpID,
+    rpID: getRpID(req),
     userID: user.id,
     userName: user.email,
     userDisplayName: user.full_name,
@@ -75,8 +75,8 @@ exports.verifyRegistrationResponse = catchAsync(async (req, res, next) => {
     verification = await verifyRegistrationResponse({
       response: req.body,
       expectedChallenge,
-      expectedOrigin: origin,
-      expectedRPID: rpID,
+      expectedOrigin: getOrigin(req),
+      expectedRPID: getRpID(req),
     });
   } catch (error) {
     console.error(error);
@@ -126,7 +126,7 @@ exports.generateLoginOptions = catchAsync(async (req, res, next) => {
   }
 
   const options = await generateAuthenticationOptions({
-    rpID,
+    rpID: getRpID(req),
     allowCredentials: userPasskeys.map(passkey => ({
       id: new Uint8Array(passkey.credentialID),
       type: 'public-key',
@@ -176,8 +176,8 @@ exports.verifyLoginResponse = catchAsync(async (req, res, next) => {
     verification = await verifyAuthenticationResponse({
       response: response,
       expectedChallenge,
-      expectedOrigin: origin,
-      expectedRPID: rpID,
+      expectedOrigin: getOrigin(req),
+      expectedRPID: getRpID(req),
       authenticator: {
         credentialPublicKey: new Uint8Array(passkey.credentialPublicKey),
         credentialID: new Uint8Array(passkey.credentialID),
