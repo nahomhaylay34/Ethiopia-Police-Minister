@@ -1,0 +1,10 @@
+{
+  "name": "cms-ethiopia-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "npm run build-frontend",
+    "build-frontend": "cd frontend && npm install && npm run build",
+    "postinstall": "cd backend && npm install"
+  }
+}
