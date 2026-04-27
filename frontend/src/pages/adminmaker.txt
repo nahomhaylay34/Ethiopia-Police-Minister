@@ -1,0 +1,1156 @@
+# Function Point Category 7: Admin Dashboard - Detailed Specification
+
+## Overview
+The Admin Dashboard provides comprehensive analytics, monitoring, and reporting capabilities for administrators to oversee the entire Crime Management Platform. It serves as the command center for law enforcement leadership to track performance metrics, identify crime patterns, allocate resources effectively, and generate actionable insights from system data.
+
+---
+
+## FP-AD-01: Get Overview Stats
+
+### Function Description
+Retrieve key performance indicators (KPIs) and high-level metrics for the dashboard overview. This endpoint provides a snapshot of the system's current state, allowing administrators to quickly assess overall platform health and law enforcement effectiveness.
+
+### Endpoint
+```
+GET /api/v1/admin/dashboard/stats
+```
+
+### Query Parameters
+| Parameter | Type | Required | Description | Default |
+|-----------|------|----------|-------------|---------|
+| date_range | string | No | Time period for data aggregation (today, week, month, year, custom) | month |
+| start_date | date | No | Custom start date (YYYY-MM-DD) - required if date_range=custom | null |
+| end_date | date | No | Custom end date (YYYY-MM-DD) - required if date_range=custom | null |
+
+### Response Structure
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "reports": {
+      "total": 1547,
+      "pending": 342,
+      "investigating": 456,
+      "resolved": 689,
+      "closed": 60,
+      "percentage_change": {
+        "total": 12.5,
+        "pending": -5.2,
+        "investigating": 8.3,
+        "resolved": 15.7,
+        "closed": 2.1
+      }
+    },
+    "cases": {
+      "total": 892,
+      "open": 412,
+      "investigation": 312,
+      "awaiting_approval": 98,
+      "closed": 70,
+      "average_resolution_days": 14.3,
+      "percentage_change": {
+        "total": 8.2,
+        "open": -3.1,
+        "closed": 18.5
+      }
+    },
+    "officers": {
+      "total": 45,
+      "active": 42,
+      "on_leave": 3,
+      "average_case_load": 8.7,
+      "most_productive": {
+        "user_id": 101,
+        "name": "John Doe",
+        "resolved_cases": 34
+      }
+    },
+    "citizens": {
+      "total": 2341,
+      "active": 1876,
+      "new_this_period": 234,
+      "verified": 2012,
+      "anonymous_reports": 89
+    },
+    "urgency_breakdown": {
+      "low": 423,
+      "medium": 678,
+      "high": 389,
+      "emergency": 57
+    },
+    "performance_metrics": {
+      "response_time_avg_hours": 4.2,
+      "resolution_rate": 68.5,
+      "citizen_satisfaction": 4.2
+    },
+    "time_period": {
+      "start": "2024-03-01",
+      "end": "2024-03-31",
+      "label": "March 2024"
+    }
+  },
+  "timestamp": "2024-04-01T10:30:00.000Z"
+}
+```
+
+### Business Logic
+1. Calculate total counts from Reports table filtered by date range
+2. Calculate status distribution from Reports table
+3. Calculate percentage changes by comparing current period with previous period
+4. Aggregate case statistics from Cases table with resolution times
+5. Calculate officer case loads from Cases table grouping by assigned_to
+6. Compute average response time from Report creation to first assignment
+7. Cache results for 5 minutes to reduce database load
+
+### Database Queries
+```sql
+-- Total reports by status
+SELECT status, COUNT(*) as count 
+FROM reports 
+WHERE created_at BETWEEN :start_date AND :end_date 
+GROUP BY status;
+
+-- Average resolution time
+SELECT AVG(DATEDIFF(closed_at, opened_at)) as avg_days 
+FROM cases 
+WHERE status = 'closed' 
+AND closed_at BETWEEN :start_date AND :end_date;
+
+-- Officer case load
+SELECT assigned_to, COUNT(*) as case_count 
+FROM cases 
+WHERE status != 'closed' 
+GROUP BY assigned_to;
+```
+
+---
+
+## FP-AD-02: Get Crime Type Distribution
+
+### Function Description
+Retrieve statistical distribution of crime reports by type, providing visual data for pie charts and bar charts. This helps administrators understand crime patterns and allocate resources accordingly.
+
+### Endpoint
+```
+GET /api/v1/admin/dashboard/crime-distribution
+```
+
+### Query Parameters
+| Parameter | Type | Required | Description | Default |
+|-----------|------|----------|-------------|---------|
+| date_range | string | No | Time period for data aggregation | month |
+| start_date | date | No | Custom start date | null |
+| end_date | date | No | Custom end date | null |
+| group_by | string | No | Grouping level (type, subcategory) | type |
+| include_percentages | boolean | No | Include percentage calculations | true |
+
+### Response Structure
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "distribution": [
+      {
+        "crime_type": "theft",
+        "label": "Theft",
+        "count": 456,
+        "percentage": 29.48,
+        "trend": "+5.2%",
+        "color": "#FF6B6B",
+        "subcategories": [
+          {
+            "subtype": "pickpocketing",
+            "count": 156,
+            "percentage": 34.21
+          },
+          {
+            "subtype": "burglary",
+            "count": 189,
+            "percentage": 41.45
+          },
+          {
+            "subtype": "vehicle_theft",
+            "count": 111,
+            "percentage": 24.34
+          }
+        ]
+      },
+      {
+        "crime_type": "assault",
+        "label": "Assault",
+        "count": 345,
+        "percentage": 22.30,
+        "trend": "-2.1%",
+        "color": "#4ECDC4"
+      },
+      {
+        "crime_type": "fraud",
+        "label": "Fraud",
+        "count": 234,
+        "percentage": 15.12,
+        "trend": "+12.3%",
+        "color": "#45B7D1"
+      },
+      {
+        "crime_type": "cybercrime",
+        "label": "Cybercrime",
+        "count": 198,
+        "percentage": 12.80,
+        "trend": "+18.7%",
+        "color": "#96CEB4"
+      },
+      {
+        "crime_type": "vandalism",
+        "label": "Vandalism",
+        "count": 145,
+        "percentage": 9.37,
+        "trend": "-3.4%",
+        "color": "#FFEAA7"
+      },
+      {
+        "crime_type": "missing_person",
+        "label": "Missing Person",
+        "count": 89,
+        "percentage": 5.75,
+        "trend": "-8.2%",
+        "color": "#DDA0DD"
+      },
+      {
+        "crime_type": "other",
+        "label": "Other",
+        "count": 80,
+        "percentage": 5.17,
+        "trend": "+1.1%",
+        "color": "#B0B0B0"
+      }
+    ],
+    "total_reports": 1547,
+    "last_updated": "2024-04-01T10:30:00.000Z"
+  }
+}
+```
+
+### Business Logic
+1. Query Reports table grouped by crime_type within date range
+2. Calculate percentages based on total reports
+3. Compute trend by comparing with previous period
+4. For subcategories, query additional subtype field if available
+5. Cache results for 1 hour as crime distribution changes slowly
+
+---
+
+## FP-AD-03: Get Status Distribution
+
+### Function Description
+Retrieve distribution of reports by their current status, providing insights into workflow efficiency and backlog management.
+
+### Endpoint
+```
+GET /api/v1/admin/dashboard/status-distribution
+```
+
+### Query Parameters
+| Parameter | Type | Required | Description | Default |
+|-----------|------|----------|-------------|---------|
+| date_range | string | No | Time period | month |
+| start_date | date | No | Custom start date | null |
+| end_date | date | No | Custom end date | null |
+| report_type | string | No | Filter by report type (all, citizen, anonymous) | all |
+
+### Response Structure
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "distribution": [
+      {
+        "status": "pending",
+        "label": "Pending Review",
+        "count": 342,
+        "percentage": 22.10,
+        "average_duration_days": 1.2,
+        "color": "#FFA500"
+      },
+      {
+        "status": "under_review",
+        "label": "Under Review",
+        "count": 234,
+        "percentage": 15.12,
+        "average_duration_days": 3.5,
+        "color": "#FFC107"
+      },
+      {
+        "status": "investigating",
+        "label": "Investigating",
+        "count": 456,
+        "percentage": 29.48,
+        "average_duration_days": 12.8,
+        "color": "#17A2B8"
+      },
+      {
+        "status": "resolved",
+        "label": "Resolved",
+        "count": 689,
+        "percentage": 44.54,
+        "average_duration_days": 8.2,
+        "color": "#28A745"
+      },
+      {
+        "status": "closed",
+        "label": "Closed",
+        "count": 60,
+        "percentage": 3.88,
+        "average_duration_days": 15.6,
+        "color": "#6C757D"
+      }
+    ],
+    "metrics": {
+      "total_active_cases": 1032,
+      "average_processing_time_days": 7.4,
+      "backlog_count": 342,
+      "efficiency_score": 72.5
+    },
+    "status_flow": {
+      "pending_to_review": 156,
+      "review_to_investigating": 189,
+      "investigating_to_resolved": 234,
+      "resolved_to_closed": 45
+    }
+  }
+}
+```
+
+### Business Logic
+1. Query status distribution from Reports table
+2. Calculate average duration per status using status history timestamps
+3. Compute workflow transitions from AuditLogs or CaseUpdates table
+4. Calculate efficiency score based on resolution rate and processing time
+
+---
+
+## FP-AD-04: Get Monthly Trends
+
+### Function Description
+Retrieve time-series data showing crime report trends over time, enabling identification of patterns, seasonal variations, and the impact of interventions.
+
+### Endpoint
+```
+GET /api/v1/admin/dashboard/trends
+```
+
+### Query Parameters
+| Parameter | Type | Required | Description | Default |
+|-----------|------|----------|-------------|---------|
+| year | integer | No | Year to analyze | current year |
+| comparison_years | integer | No | Number of previous years to compare | 1 |
+| granularity | string | No | Time granularity (day, week, month) | month |
+| crime_types | array | No | Filter by specific crime types | all |
+
+### Response Structure
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "trends": {
+      "2024": {
+        "January": 145,
+        "February": 156,
+        "March": 178,
+        "April": 189,
+        "May": 201,
+        "June": 198,
+        "July": 210,
+        "August": 223,
+        "September": 215,
+        "October": 234,
+        "November": 245,
+        "December": 267
+      },
+      "2023": {
+        "January": 134,
+        "February": 142,
+        "March": 156,
+        "April": 167,
+        "May": 178,
+        "June": 182,
+        "July": 190,
+        "August": 198,
+        "September": 189,
+        "October": 201,
+        "November": 212,
+        "December": 223
+      }
+    },
+    "crime_type_trends": {
+      "theft": {
+        "Jan": 45, "Feb": 48, "Mar": 52,
+        "trend_percentage": "+15.6%"
+      },
+      "fraud": {
+        "Jan": 23, "Feb": 28, "Mar": 35,
+        "trend_percentage": "+52.2%"
+      }
+    },
+    "statistics": {
+      "year_over_year_growth": 12.3,
+      "highest_month": {
+        "month": "December 2024",
+        "count": 267
+      },
+      "lowest_month": {
+        "month": "January 2023",
+        "count": 134
+      },
+      "average_monthly": 198.5,
+      "seasonal_pattern": "higher_during_holidays"
+    },
+    "forecast": {
+      "next_month": 275,
+      "confidence_interval": [260, 290],
+      "prediction_model": "linear_regression"
+    }
+  }
+}
+```
+
+### Business Logic
+1. Aggregate reports by month for specified years
+2. Calculate year-over-year percentage changes
+3. Perform linear regression for forecasting
+4. Identify seasonal patterns using historical data
+5. Cache monthly aggregates and recompute daily
+
+---
+
+## FP-AD-05: Get Officer Load Distribution
+
+### Function Description
+Retrieve workload distribution across officers and detectives to identify resource allocation issues and balance caseloads effectively.
+
+### Endpoint
+```
+GET /api/v1/admin/dashboard/officer-load
+```
+
+### Query Parameters
+| Parameter | Type | Required | Description | Default |
+|-----------|------|----------|-------------|---------|
+| department | string | No | Filter by department/unit | all |
+| role | string | No | Filter by role (officer, detective) | all |
+| sort_by | string | No | Sort field (case_count, resolved_count, efficiency) | case_count |
+| sort_order | string | No | Sort direction (asc, desc) | desc |
+
+### Response Structure
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "officers": [
+      {
+        "user_id": 101,
+        "name": "John Doe",
+        "badge_number": "PD-1234",
+        "role": "detective",
+        "department": "Major Crimes",
+        "active_cases": 12,
+        "total_assigned": 34,
+        "resolved_this_month": 8,
+        "pending_reports": 5,
+        "average_resolution_days": 9.2,
+        "efficiency_score": 85.5,
+        "overload_status": "normal",
+        "cases_by_priority": {
+          "low": 3,
+          "medium": 5,
+          "high": 3,
+          "emergency": 1
+        }
+      },
+      {
+        "user_id": 102,
+        "name": "Jane Smith",
+        "badge_number": "PD-1235",
+        "role": "officer",
+        "department": "Patrol",
+        "active_cases": 8,
+        "total_assigned": 25,
+        "resolved_this_month": 12,
+        "pending_reports": 2,
+        "average_resolution_days": 5.4,
+        "efficiency_score": 92.3,
+        "overload_status": "underloaded",
+        "cases_by_priority": {
+          "low": 4,
+          "medium": 3,
+          "high": 1,
+          "emergency": 0
+        }
+      }
+    ],
+    "summary": {
+      "total_officers": 45,
+      "total_active_cases": 892,
+      "average_case_load": 19.8,
+      "officers_overloaded": 8,
+      "officers_underloaded": 12,
+      "officers_optimal": 25,
+      "recommended_adjustments": [
+        "Reassign 2 high-priority cases from Officer Doe to Officer Smith",
+        "Distribute 3 new fraud cases to fraud unit"
+      ]
+    },
+    "heatmap_data": {
+      "by_hour": {
+        "0-4": 23,
+        "4-8": 45,
+        "8-12": 234,
+        "12-16": 289,
+        "16-20": 178,
+        "20-24": 67
+      },
+      "by_day": {
+        "Monday": 289,
+        "Tuesday": 312,
+        "Wednesday": 298,
+        "Thursday": 301,
+        "Friday": 345,
+        "Saturday": 234,
+        "Sunday": 189
+      }
+    }
+  }
+}
+```
+
+### Business Logic
+1. Query Cases table grouping by assigned_to
+2. Calculate active cases (status not closed)
+3. Calculate resolved cases within current month
+4. Compute efficiency score based on resolution time and case complexity
+5. Determine overload status using threshold (active_cases > 15 = overloaded)
+6. Generate workload heatmap by time and day patterns
+
+---
+
+## FP-AD-06: Get Location Heatmap Data
+
+### Function Description
+Retrieve geospatial crime data for heatmap visualization, enabling identification of high-crime areas and geographic patterns.
+
+### Endpoint
+```
+GET /api/v1/admin/dashboard/heatmap
+```
+
+### Query Parameters
+| Parameter | Type | Required | Description | Default |
+|-----------|------|----------|-------------|---------|
+| date_range | string | No | Time period | month |
+| start_date | date | No | Custom start date | null |
+| end_date | date | No | Custom end date | null |
+| crime_types | array | No | Filter by crime types | all |
+| bounds | object | No | Map bounds {north, south, east, west} | all |
+| zoom_level | integer | No | Map zoom level for aggregation | 10 |
+| cluster | boolean | No | Cluster nearby points | true |
+
+### Response Structure
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "heatmap_points": [
+      {
+        "latitude": 40.7128,
+        "longitude": -74.0060,
+        "intensity": 0.95,
+        "count": 156,
+        "crime_types": ["theft", "assault"],
+        "avg_urgency": 2.3,
+        "hotspot_rank": 1
+      },
+      {
+        "latitude": 40.7580,
+        "longitude": -73.9855,
+        "intensity": 0.82,
+        "count": 134,
+        "crime_types": ["fraud", "cybercrime"],
+        "avg_urgency": 1.8,
+        "hotspot_rank": 2
+      }
+    ],
+    "clusters": [
+      {
+        "center": { "lat": 40.735, "lng": -73.995 },
+        "point_count": 456,
+        "radius": 500,
+        "crime_type_distribution": {
+          "theft": 45,
+          "assault": 32,
+          "fraud": 28
+        }
+      }
+    ],
+    "boundaries": {
+      "north": 40.8000,
+      "south": 40.7000,
+      "east": -73.9000,
+      "west": -74.1000
+    },
+    "statistics": {
+      "total_points": 2345,
+      "hotspot_count": 8,
+      "coldspot_count": 12,
+      "density_score": 0.67,
+      "most_dangerous_zone": "Downtown District"
+    },
+    "time_animation": [
+      {
+        "hour": 8,
+        "points": 45,
+        "hotspots": ["Downtown", "Subway Stations"]
+      },
+      {
+        "hour": 18,
+        "points": 89,
+        "hotspots": ["Shopping District", "Parking Lots"]
+      }
+    ]
+  }
+}
+```
+
+### Business Logic
+1. Query reports with valid coordinates within date range
+2. Group points by geographical proximity based on zoom level
+3. Calculate intensity based on report count, urgency, and recency
+4. Identify hotspots using density clustering algorithm
+5. Generate time-based animation data for temporal patterns
+
+---
+
+## FP-AD-07: Get Resolution Metrics
+
+### Function Description
+Retrieve detailed metrics on case resolution efficiency, including average resolution times, clearance rates, and comparative analysis across different dimensions.
+
+### Endpoint
+```
+GET /api/v1/admin/dashboard/resolution-metrics
+```
+
+### Query Parameters
+| Parameter | Type | Required | Description | Default |
+|-----------|------|----------|-------------|---------|
+| date_range | string | No | Time period | month |
+| start_date | date | No | Custom start date | null |
+| end_date | date | No | Custom end date | null |
+| group_by | string | No | Group by (crime_type, officer, department) | crime_type |
+
+### Response Structure
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "overall": {
+      "clearance_rate": 68.5,
+      "average_resolution_days": 14.3,
+      "median_resolution_days": 9.2,
+      "cases_resolved": 689,
+      "cases_total": 1007,
+      "target_clearance_rate": 75.0,
+      "performance_gap": -6.5
+    },
+    "by_crime_type": [
+      {
+        "crime_type": "theft",
+        "clearance_rate": 62.3,
+        "avg_days": 12.5,
+        "cases_resolved": 284,
+        "cases_total": 456,
+        "trend": "+5.2%"
+      },
+      {
+        "crime_type": "assault",
+        "clearance_rate": 75.8,
+        "avg_days": 10.2,
+        "cases_resolved": 261,
+        "cases_total": 345,
+        "trend": "+3.1%"
+      }
+    ],
+    "by_priority": {
+      "low": {
+        "clearance_rate": 82.4,
+        "avg_days": 8.2
+      },
+      "medium": {
+        "clearance_rate": 71.3,
+        "avg_days": 12.5
+      },
+      "high": {
+        "clearance_rate": 58.7,
+        "avg_days": 18.9
+      },
+      "emergency": {
+        "clearance_rate": 52.1,
+        "avg_days": 24.3
+      }
+    },
+    "by_officer_type": {
+      "detective": {
+        "clearance_rate": 72.5,
+        "avg_days": 15.2,
+        "cases_per_officer": 12.3
+      },
+      "police_officer": {
+        "clearance_rate": 65.8,
+        "avg_days": 12.8,
+        "cases_per_officer": 8.7
+      }
+    },
+    "trends": {
+      "monthly_clearance_rate": [
+        { "month": "Jan", "rate": 65.2 },
+        { "month": "Feb", "rate": 67.8 },
+        { "month": "Mar", "rate": 68.5 }
+      ],
+      "monthly_resolution_time": [
+        { "month": "Jan", "days": 15.2 },
+        { "month": "Feb", "days": 14.8 },
+        { "month": "Mar", "days": 14.3 }
+      ]
+    },
+    "benchmark": {
+      "national_average_clearance_rate": 65.0,
+      "national_average_resolution_days": 16.5,
+      "performance_rating": "above_average"
+    }
+  }
+}
+```
+
+### Business Logic
+1. Calculate clearance rate = (resolved_cases / total_cases) * 100
+2. Compute average and median resolution time from case creation to closure
+3. Group metrics by crime type, priority, and officer type
+4. Calculate monthly trends for performance tracking
+5. Compare against national benchmarks (configurable)
+
+---
+
+## FP-AD-08: Export Data
+
+### Function Description
+Generate and download data exports in various formats for external reporting, analysis, and archival purposes.
+
+### Endpoint
+```
+POST /api/v1/admin/export
+```
+
+### Request Body
+```json
+{
+  "export_type": "reports",
+  "format": "csv",
+  "date_range": "month",
+  "start_date": "2024-03-01",
+  "end_date": "2024-03-31",
+  "filters": {
+    "crime_types": ["theft", "assault"],
+    "statuses": ["resolved", "closed"],
+    "locations": ["Downtown", "Uptown"]
+  },
+  "fields": [
+    "report_id",
+    "title",
+    "crime_type",
+    "status",
+    "created_at",
+    "resolved_at",
+    "assigned_officer"
+  ],
+  "include_headers": true,
+  "compression": false
+}
+```
+
+### Response
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "export_id": "exp_123456789",
+    "status": "processing",
+    "estimated_completion": "2024-04-01T10:35:00Z",
+    "download_url": "/api/v1/admin/export/download/exp_123456789",
+    "expires_at": "2024-04-08T10:30:00Z"
+  }
+}
+```
+
+### Download Endpoint
+```
+GET /api/v1/admin/export/download/:export_id
+```
+
+### Supported Export Types
+| Export Type | Description | Available Formats |
+|-------------|-------------|-------------------|
+| reports | Crime report data | CSV, JSON, Excel |
+| cases | Case management data | CSV, JSON, Excel |
+| officers | Officer performance data | CSV, JSON, PDF |
+| audit_logs | System audit trail | CSV, JSON |
+| statistics | Aggregated statistics | CSV, JSON, PDF |
+| heatmap | Geospatial data | GeoJSON, CSV |
+
+### Business Logic
+1. Validate export request parameters
+2. Generate export job with unique ID
+3. Process export asynchronously using background job queue
+4. Store generated file temporarily (24 hours)
+5. Track export history for audit purposes
+6. Limit exports per user (10 per day)
+7. Maximum file size 100MB per export
+
+---
+
+## FP-AD-09: Get Audit Logs
+
+### Function Description
+Retrieve system audit trail showing all sensitive actions performed by users, enabling security monitoring and compliance reporting.
+
+### Endpoint
+```
+GET /api/v1/admin/audit-logs
+```
+
+### Query Parameters
+| Parameter | Type | Required | Description | Default |
+|-----------|------|----------|-------------|---------|
+| page | integer | No | Page number | 1 |
+| limit | integer | No | Items per page | 20 |
+| start_date | date | No | Filter by start date | null |
+| end_date | date | No | Filter by end date | null |
+| user_id | integer | No | Filter by specific user | null |
+| action | string | No | Filter by action type | null |
+| entity_type | string | No | Filter by entity type | null |
+| severity | string | No | Filter by severity (info, warning, critical) | null |
+| sort_by | string | No | Sort field | created_at |
+| sort_order | string | No | Sort direction | desc |
+
+### Response Structure
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "logs": [
+      {
+        "id": 1001,
+        "user": {
+          "id": 101,
+          "name": "John Doe",
+          "email": "john.doe@police.gov",
+          "role": "administrator"
+        },
+        "action": "REPORT_STATUS_CHANGE",
+        "entity_type": "Report",
+        "entity_id": 5432,
+        "old_data": {
+          "status": "pending"
+        },
+        "new_data": {
+          "status": "investigating",
+          "assigned_to": 105
+        },
+        "severity": "info",
+        "ip_address": "192.168.1.100",
+        "user_agent": "Mozilla/5.0...",
+        "created_at": "2024-04-01T09:45:23.000Z"
+      },
+      {
+        "id": 1002,
+        "user": {
+          "id": 105,
+          "name": "Jane Smith",
+          "email": "jane.smith@police.gov",
+          "role": "detective"
+        },
+        "action": "CASE_MERGE",
+        "entity_type": "Case",
+        "entity_id": 789,
+        "old_data": null,
+        "new_data": {
+          "merged_cases": [785, 786, 788],
+          "primary_case": 789
+        },
+        "severity": "warning",
+        "ip_address": "192.168.1.105",
+        "user_agent": "Mozilla/5.0...",
+        "created_at": "2024-04-01T08:30:15.000Z"
+      }
+    ],
+    "summary": {
+      "total_logs": 15423,
+      "total_pages": 772,
+      "critical_actions": 23,
+      "warning_actions": 156,
+      "info_actions": 15244,
+      "top_users": [
+        { "user_id": 101, "name": "John Doe", "actions": 2345 },
+        { "user_id": 102, "name": "Admin User", "actions": 1876 }
+      ],
+      "top_actions": [
+        { "action": "REPORT_VIEW", "count": 5678 },
+        { "action": "REPORT_STATUS_CHANGE", "count": 2341 }
+      ]
+    },
+    "filters_applied": {
+      "date_range": "2024-03-01 to 2024-03-31",
+      "severity": "all"
+    }
+  }
+}
+```
+
+### Audit Action Types
+| Category | Actions |
+|----------|---------|
+| Authentication | LOGIN, LOGOUT, LOGIN_FAILED, PASSWORD_CHANGE, PASSWORD_RESET |
+| User Management | USER_CREATE, USER_UPDATE, USER_DELETE, ROLE_CHANGE, USER_LOCK |
+| Reports | REPORT_CREATE, REPORT_UPDATE, REPORT_DELETE, REPORT_STATUS_CHANGE |
+| Cases | CASE_CREATE, CASE_UPDATE, CASE_DELETE, CASE_ASSIGN, CASE_MERGE |
+| Evidence | EVIDENCE_UPLOAD, EVIDENCE_DELETE |
+| System | EXPORT_DATA, SETTINGS_CHANGE, BACKUP_CREATED |
+
+### Business Logic
+1. Query AuditLogs table with filters
+2. Join with Users table for user details
+3. Calculate summary statistics for dashboard display
+4. Implement retention policy (90 days for logs)
+5. Archive older logs to separate storage
+6. Index critical actions for quick retrieval
+
+---
+
+## FP-AD-10: Get Real-Time Alerts
+
+### Function Description
+Retrieve real-time alerts and anomalies detected in the system, enabling proactive response to emerging issues.
+
+### Endpoint
+```
+GET /api/v1/admin/dashboard/alerts
+```
+
+### Query Parameters
+| Parameter | Type | Required | Description | Default |
+|-----------|------|----------|-------------|---------|
+| status | string | No | Filter by status (active, acknowledged, resolved) | active |
+| severity | string | No | Filter by severity (low, medium, high, critical) | all |
+| limit | integer | No | Maximum alerts to return | 50 |
+
+### Response Structure
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "alerts": [
+      {
+        "id": "alert_001",
+        "type": "SURGE_ALERT",
+        "title": "Crime Surge Detected",
+        "description": "30% increase in theft reports in Downtown area over last 24 hours",
+        "severity": "high",
+        "status": "active",
+        "created_at": "2024-04-01T09:15:00Z",
+        "metadata": {
+          "location": "Downtown",
+          "crime_type": "theft",
+          "increase_percentage": 30,
+          "affected_reports": 23,
+          "hotspot_coordinates": {
+            "lat": 40.7128,
+            "lng": -74.0060
+          }
+        },
+        "recommended_action": "Deploy additional patrol units to Downtown area",
+        "acknowledged_by": null,
+        "acknowledged_at": null,
+        "resolved_at": null
+      },
+      {
+        "id": "alert_002",
+        "type": "BACKLOG_ALERT",
+        "title": "Case Backlog Exceeds Threshold",
+        "description": "Pending cases have exceeded 500 for 3 consecutive days",
+        "severity": "medium",
+        "status": "acknowledged",
+        "created_at": "2024-03-31T08:00:00Z",
+        "metadata": {
+          "pending_cases": 512,
+          "threshold": 500,
+          "days_exceeded": 3
+        },
+        "recommended_action": "Review resource allocation and consider overtime authorization",
+        "acknowledged_by": {
+          "id": 101,
+          "name": "John Doe"
+        },
+        "acknowledged_at": "2024-03-31T10:30:00Z",
+        "resolved_at": null
+      }
+    ],
+    "summary": {
+      "total_active": 8,
+      "critical": 2,
+      "high": 3,
+      "medium": 2,
+      "low": 1,
+      "trend": "-2 from yesterday"
+    },
+    "alert_rules": [
+      {
+        "rule": "crime_surge",
+        "threshold": "25% increase in 24h",
+        "status": "active"
+      },
+      {
+        "rule": "backlog_threshold",
+        "threshold": "500 pending cases",
+        "status": "active"
+      },
+      {
+        "rule": "response_time",
+        "threshold": ">4 hours average",
+        "status": "active"
+      }
+    ]
+  }
+}
+```
+
+### Alert Types and Triggers
+| Alert Type | Trigger Condition | Severity |
+|------------|-------------------|----------|
+| Crime Surge | >25% increase in any crime type within 24h | High |
+| Backlog Alert | >500 pending cases for >2 days | Medium |
+| Response Time | Average response time >4 hours | High |
+| Officer Overload | Any officer with >15 active cases | Medium |
+| System Performance | API error rate >5% for 5 minutes | Critical |
+| Unusual Pattern | Crime outside normal time patterns | Low |
+| Evidence Upload | Multiple failed upload attempts | Low |
+
+---
+
+## Database Schema for Admin Dashboard
+
+### Additional Tables Required
+
+```sql
+-- Alert Rules Configuration
+CREATE TABLE alert_rules (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL,
+  type VARCHAR(50) NOT NULL,
+  condition JSON NOT NULL,
+  severity ENUM('low', 'medium', 'high', 'critical') DEFAULT 'medium',
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Generated Alerts
+CREATE TABLE alerts (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  rule_id INT,
+  type VARCHAR(50) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  severity ENUM('low', 'medium', 'high', 'critical') NOT NULL,
+  status ENUM('active', 'acknowledged', 'resolved') DEFAULT 'active',
+  metadata JSON,
+  acknowledged_by INT,
+  acknowledged_at TIMESTAMP NULL,
+  resolved_by INT,
+  resolved_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (rule_id) REFERENCES alert_rules(id),
+  FOREIGN KEY (acknowledged_by) REFERENCES users(id),
+  FOREIGN KEY (resolved_by) REFERENCES users(id)
+);
+
+-- Export Jobs
+CREATE TABLE export_jobs (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  export_type VARCHAR(50) NOT NULL,
+  format VARCHAR(20) NOT NULL,
+  filters JSON,
+  status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
+  file_path VARCHAR(500),
+  file_size INT,
+  expires_at TIMESTAMP,
+  error_message TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  completed_at TIMESTAMP NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Dashboard Cache
+CREATE TABLE dashboard_cache (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  cache_key VARCHAR(255) UNIQUE NOT NULL,
+  cache_data JSON NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Performance Metrics (for historical tracking)
+CREATE TABLE performance_metrics (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  metric_date DATE NOT NULL,
+  total_reports INT,
+  resolved_reports INT,
+  clearance_rate DECIMAL(5,2),
+  avg_resolution_days DECIMAL(5,2),
+  active_officers INT,
+  total_cases INT,
+  metrics_data JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_metric_date (metric_date)
+);
+```
+
+---
+
+## Caching Strategy
+
+| Cache Key | TTL | Update Frequency |
+|-----------|-----|------------------|
+| dashboard:stats:overview | 5 minutes | On report/case changes |
+| dashboard:crime_distribution | 1 hour | On new reports |
+| dashboard:trends:monthly | 24 hours | Daily at midnight |
+| dashboard:officer_load | 15 minutes | On case assignments |
+| dashboard:heatmap | 30 minutes | On new geolocated reports |
+| dashboard:alerts | 1 minute | Real-time monitoring |
+
+---
+
+## Security Considerations
+
+1. **Role-Based Access**: Only users with ADMIN role can access these endpoints
+2. **Data Masking**: Sensitive location data masked for non-super-admin users
+3. **Rate Limiting**: Stricter limits on export endpoints (10 requests per hour)
+4. **Audit Logging**: All dashboard access is logged for compliance
+5. **Data Retention**: Dashboard data exports are automatically deleted after 24 hours
