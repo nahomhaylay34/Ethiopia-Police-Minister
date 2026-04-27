@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "cd frontend && npm install && npm run build && mkdir -p ../public && cp -r dist/* ../public"
+    "build": "npm install --prefix frontend && npm run build --prefix frontend && rm -rf dist && mv frontend/dist ./dist"
   },
   "dependencies": {
     "@simplewebauthn/server": "^13.3.0",
