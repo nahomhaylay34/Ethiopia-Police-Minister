@@ -25,7 +25,23 @@ const app = express();
 
 // Expose models to request handlers that dynamically need them
 const models = require('./models');
+const sequelize = require('./config/database');
 app.set('models', models);
+
+// Auto-sync database in serverless production
+let isSynced = false;
+app.use(async (req, res, next) => {
+  if (!isSynced && process.env.POSTGRES_URL) {
+    try {
+      await sequelize.sync();
+      isSynced = true;
+      console.log('✅ Database synced automatically');
+    } catch (err) {
+      console.error('❌ Sync failed:', err);
+    }
+  }
+  next();
+});
 
 // 1) GLOBAL MIDDLEWARES
 // Set security HTTP headers
