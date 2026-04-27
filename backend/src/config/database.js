@@ -3,9 +3,14 @@ const config = require('./config');
 
 let sequelize;
 
-if (process.env.POSTGRES_URL) {
-  sequelize = new Sequelize(process.env.POSTGRES_URL + "?sslmode=require", {
+// Use Vercel Postgres if available
+const pgUrl = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL || process.env.DATABASE_URL;
+
+if (pgUrl) {
+  console.log('📡 Connecting to Vercel Postgres...');
+  sequelize = new Sequelize(pgUrl, {
     dialect: 'postgres',
+    protocol: 'postgres',
     dialectOptions: {
       ssl: {
         require: true,
@@ -21,6 +26,7 @@ if (process.env.POSTGRES_URL) {
     logging: false
   });
 } else {
+  console.log('🏠 Connecting to Local MySQL...');
   sequelize = new Sequelize(config.db.database, config.db.user, config.db.password, {
     host: config.db.host,
     port: config.db.port,
